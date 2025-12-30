@@ -23,7 +23,9 @@
 /* USER CODE BEGIN Includes */
 #include "MPU9250.h"
 #include "RF98.h"
+#include "bme280.h"
 #include <stdint.h>
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
