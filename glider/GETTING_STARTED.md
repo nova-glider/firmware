@@ -97,3 +97,9 @@ GPSData.lastMeasure // hhmmss.ss UTC of last successful measurement; time
 ```
 
 en als laatste: Veel van deze functies verwachten de peripheral die ze moeten gebruiken. Welke bij welke hoort weet ik niet meer, maar dat kan je opzoeken in de schematjes die je normaal gezien al van mij gekregen hebt (indien niet, bel of stuur een berichtje)
+
+Het enige dat nog toegevoegd hoort te worden wijn de libraries voor de micro-sd kaart.
+
+Het is voor dit soort werk ook wel handig om in branches te werken als je zelf nog drivers wilt toevoegen.
+
+En tot slot: veel geluk!
