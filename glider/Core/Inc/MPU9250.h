@@ -57,10 +57,10 @@ struct Attitude {
 };
 
 // Variables (extern declarations)
-extern struct RawData rawData;
-extern struct SensorData sensorData;
+extern struct RawData MPURawData;
+extern struct SensorData MPUData;
 extern struct GyroCal gyroCal;
-extern struct Attitude attitude;
+extern struct Attitude MPUattitude;
 extern uint8_t _addr;
 extern float _dt, _tau;
 extern float aScaleFactor, gScaleFactor;

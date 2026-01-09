@@ -9,10 +9,10 @@
 #include "main.h"
 
 // Global variable definitions
-struct RawData rawData;
-struct SensorData sensorData;
+struct RawData MPURawData;
+struct SensorData MPUData;
 struct GyroCal gyroCal;
-struct Attitude attitude;
+struct Attitude MPUattitude;
 uint8_t _addr;
 float _dt, _tau;
 float aScaleFactor, gScaleFactor;
@@ -142,13 +142,13 @@ void MPU_readRawData(I2C_HandleTypeDef *I2Cx) {
   HAL_I2C_Mem_Read(I2Cx, _addr, ACCEL_XOUT_H, 1, buf, 14, I2C_TIMOUT_MS);
 
   // Bit shift the data
-  rawData.ax = buf[0] << 8 | buf[1];
-  rawData.ay = buf[2] << 8 | buf[3];
-  rawData.az = buf[4] << 8 | buf[5];
+  MPURawData.ax = buf[0] << 8 | buf[1];
+  MPURawData.ay = buf[2] << 8 | buf[3];
+  MPURawData.az = buf[4] << 8 | buf[5];
   // temperature = buf[6] << 8 | buf[7];
-  rawData.gx = buf[8] << 8 | buf[9];
-  rawData.gy = buf[10] << 8 | buf[11];
-  rawData.gz = buf[12] << 8 | buf[13];
+  MPURawData.gx = buf[8] << 8 | buf[9];
+  MPURawData.gy = buf[10] << 8 | buf[11];
+  MPURawData.gz = buf[12] << 8 | buf[13];
 }
 
 /// @brief Find offsets for each axis of gyroscope.
@@ -168,9 +168,9 @@ void MPU_calibrateGyro(I2C_HandleTypeDef *I2Cx, uint16_t numCalPoints) {
   // Save specified number of points
   for (uint16_t ii = 0; ii < numCalPoints; ii++) {
     MPU_readRawData(I2Cx);
-    x += rawData.gx;
-    y += rawData.gy;
-    z += rawData.gz;
+    x += MPURawData.gx;
+    y += MPURawData.gy;
+    z += MPURawData.gz;
     HAL_Delay(3);
   }
 
@@ -187,35 +187,35 @@ void MPU_readProcessedData(I2C_HandleTypeDef *I2Cx) {
   MPU_readRawData(I2Cx);
 
   // Convert accelerometer values to g's
-  sensorData.ax = rawData.ax / aScaleFactor;
-  sensorData.ay = rawData.ay / aScaleFactor;
-  sensorData.az = rawData.az / aScaleFactor;
+  MPUData.ax = MPURawData.ax / aScaleFactor;
+  MPUData.ay = MPURawData.ay / aScaleFactor;
+  MPUData.az = MPURawData.az / aScaleFactor;
 
   // Compensate for gyro offset
-  sensorData.gx = rawData.gx - gyroCal.x;
-  sensorData.gy = rawData.gy - gyroCal.y;
-  sensorData.gz = rawData.gz - gyroCal.z;
+  MPUData.gx = MPURawData.gx - gyroCal.x;
+  MPUData.gy = MPURawData.gy - gyroCal.y;
+  MPUData.gz = MPURawData.gz - gyroCal.z;
 
   // Convert gyro values to deg/s
-  sensorData.gx /= gScaleFactor;
-  sensorData.gy /= gScaleFactor;
-  sensorData.gz /= gScaleFactor;
+  MPUData.gx /= gScaleFactor;
+  MPUData.gy /= gScaleFactor;
+  MPUData.gz /= gScaleFactor;
 }
 
-/// @brief Calculate the attitude of the sensor in degrees using a complementary
-/// filter.
+/// @brief Calculate the MPUattitude of the sensor in degrees using a
+/// complementary filter.
 /// @param I2Cx Pointer to I2C structure config.
 void MPU_calcAttitude(I2C_HandleTypeDef *I2Cx) {
   // Read processed data
   MPU_readProcessedData(I2Cx);
 
   // Complementary filter
-  float accelPitch = atan2(sensorData.ay, sensorData.az) * RAD2DEG;
-  float accelRoll = atan2(sensorData.ax, sensorData.az) * RAD2DEG;
+  float accelPitch = atan2(MPUData.ay, MPUData.az) * RAD2DEG;
+  float accelRoll = atan2(MPUData.ax, MPUData.az) * RAD2DEG;
 
-  attitude.r =
-      _tau * (attitude.r - sensorData.gy * _dt) + (1 - _tau) * accelRoll;
-  attitude.p =
-      _tau * (attitude.p + sensorData.gx * _dt) + (1 - _tau) * accelPitch;
-  attitude.y += sensorData.gz * _dt;
+  MPUattitude.r =
+      _tau * (MPUattitude.r - MPUData.gy * _dt) + (1 - _tau) * accelRoll;
+  MPUattitude.p =
+      _tau * (MPUattitude.p + MPUData.gx * _dt) + (1 - _tau) * accelPitch;
+  MPUattitude.y += MPUData.gz * _dt;
 }

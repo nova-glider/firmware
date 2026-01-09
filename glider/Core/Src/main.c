@@ -24,6 +24,7 @@
 #include "MPU9250.h"
 #include "RF98.h"
 #include "bme280.h"
+#include "nmea_parse.h"
 #include <stdint.h>
 
 /* USER CODE END Includes */
@@ -35,7 +36,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+BME280_Data_t BME280;
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -52,7 +53,15 @@ SPI_HandleTypeDef hspi2;
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
+#define RxBuffer_SIZE 64   // configure uart receive buffer size
+#define GPSBuffer_SIZE 512 // gather a few rxBuffer frames before parsing
 
+uint16_t oldPos = 0;
+uint16_t newPos = 0;
+uint8_t RxBuffer[RxBuffer_SIZE];
+uint8_t GPSBuffer[GPSBuffer_SIZE];
+
+GPS GPSData;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -106,14 +115,23 @@ int main(void) {
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
   RF98_Init();
+
   MPU_begin(&hi2c1, AD0_LOW, AFSR_16G, GFSR_2000DPS, 0.98, 0.004);
   MPU_calibrateGyro(&hi2c1, 1500);
+  MPU_calcAttitude(&hi2c1);
+
+  Reset_BME280();
+  BME280Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1) {
     RF98_send((uint8_t *)"blub");
+    BME280Calculation(&BME280);
+    MPU_readProcessedData(&hi2c1);
+    MPU_calcAttitude(&hi2c1);
+    nmea_parse(&GPSData, GPSBuffer);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
