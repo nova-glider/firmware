@@ -11,7 +11,7 @@
 
 // Libs
 #include "stm32f1xx_hal.h"
-#include <math.h>
+// #include <math.h>
 #include <stdint.h>
 
 // Constants

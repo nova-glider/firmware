@@ -31,10 +31,10 @@
 #include "main.h"
 #include "spi.h"
 #include "stm32f1xx_hal_def.h"
-#include <stdio.h>
-#include <stdlib.h>
+// #include <stdio.h>
+// #include <stdlib.h>
 #include <stdbool.h>
-#include <string.h>
+// #include <string.h>
 
 //Modifiers for read and send
 #define W	0x80

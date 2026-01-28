@@ -5,9 +5,9 @@
 #ifndef STM32_SERIAL_DMA_NEO6M_PARSE_H
 #define STM32_SERIAL_DMA_NEO6M_PARSE_H
 
-#include <stdlib.h>
+// #include <stdlib.h>
 #include <stm32f1xx.h>
-#include <string.h>
+// #include <string.h>
 
 /*******************************************************************************
  * @brief GPS data structure for storing parsed data

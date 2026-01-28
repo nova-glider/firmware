@@ -83,7 +83,11 @@ void Error_Handler(void);
 #define BTN_3_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
-
+const char* json_from_values(void);
+void update_bme280_values(void);
+void update_mpu9250_values(void);
+void update_nmea_values(void);
+void send(const char* message);
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
