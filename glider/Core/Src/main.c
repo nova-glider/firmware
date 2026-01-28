@@ -26,6 +26,7 @@
 #include "bme280.h"
 #include "nmea_parse.h"
 #include <stdint.h>
+#include <limits.h>
 
 /* USER CODE END Includes */
 
@@ -37,6 +38,10 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 BME280_Data_t BME280;
+
+/* Buffer size constants */
+#define JSON_BUFFER_SIZE 512
+#define TIMESTAMP_BUFFER_SIZE 32
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -435,40 +440,108 @@ void update_nmea_values(void) {
 
 }
 
-// Helper function to convert int to string
-static int int_to_str(char *str, int value) {
+/**
+ * @brief Helper function to convert int to string with bounds checking
+ * @param str Output string buffer
+ * @param buf_size Remaining buffer size
+ * @param value Integer value to convert
+ * @return Number of characters written, or -1 on error
+ */
+static int int_to_str_safe(char *str, int buf_size, int value) {
+  if (buf_size <= 0) {
+    return -1; // Buffer overflow
+  }
+  
+  // Handle INT_MIN special case
+  if (value == INT_MIN) {
+    const char *min_str = "-2147483648";
+    int len = 0;
+    while (min_str[len] && len < buf_size - 1) {
+      str[len] = min_str[len];
+      len++;
+    }
+    if (len >= buf_size - 1) {
+      return -1; // Buffer overflow
+    }
+    return len;
+  }
+  
   if (value < 0) {
     str[0] = '-';
-    return 1 + int_to_str(&str[1], -value);
+    int result = int_to_str_safe(&str[1], buf_size - 1, -value);
+    if (result < 0) {
+      return -1;
+    }
+    return 1 + result;
   }
+  
   if (value >= 10) {
-    int len = int_to_str(str, value / 10);
-    return len + int_to_str(&str[len], value % 10);
+    int len = int_to_str_safe(str, buf_size, value / 10);
+    if (len < 0) {
+      return -1;
+    }
+    int digit_result = int_to_str_safe(&str[len], buf_size - len, value % 10);
+    if (digit_result < 0) {
+      return -1;
+    }
+    return len + digit_result;
+  }
+  
+  if (buf_size < 1) {
+    return -1;
   }
   str[0] = value + '0';
   return 1;
 }
 
+/**
+ * @brief Convert GPS timestamp to ISO 8601 format string
+ * @return Pointer to static buffer containing timestamp, or NULL on error
+ */
 const char* timestamp_to_string(void) {
-  static char buffer[32];
+  static char buffer[TIMESTAMP_BUFFER_SIZE];
+  
+  // Validate GPS data
+  if (!GPSData.lastMeasure[0]) {
+    return NULL; // No GPS data available
+  }
+  
   // Parse lastMeasure string (format: "hhmmss.ss")
   float timeValue = 0.0;
-  for (int i = 0; GPSData.lastMeasure[i] && GPSData.lastMeasure[i] != '\0'; i++) {
+  int i;
+  for (i = 0; i < 10 && GPSData.lastMeasure[i] != '\0'; i++) {
     if (GPSData.lastMeasure[i] == '.') {
-      timeValue = timeValue * 100 + (GPSData.lastMeasure[i+1] - '0') * 10 + (GPSData.lastMeasure[i+2] - '0');
+      if (GPSData.lastMeasure[i+1] >= '0' && GPSData.lastMeasure[i+1] <= '9' &&
+          GPSData.lastMeasure[i+2] >= '0' && GPSData.lastMeasure[i+2] <= '9') {
+        timeValue = timeValue * 100 + (GPSData.lastMeasure[i+1] - '0') * 10 + 
+                    (GPSData.lastMeasure[i+2] - '0');
+      }
       break;
     }
-    timeValue = timeValue * 10 + (GPSData.lastMeasure[i] - '0');
+    if (GPSData.lastMeasure[i] >= '0' && GPSData.lastMeasure[i] <= '9') {
+      timeValue = timeValue * 10 + (GPSData.lastMeasure[i] - '0');
+    }
   }
   
   int hours = (int)(timeValue / 10000);
   int minutes = (int)((timeValue - (hours * 10000)) / 100);
   float seconds = timeValue - (hours * 10000) - (minutes * 100);
   
-  // Manual string building
+  // Validate time values
+  if (hours > 23 || minutes > 59 || seconds >= 60.0) {
+    return NULL; // Invalid time
+  }
+  
+  // Manual string building with bounds checking
   int pos = 0;
   const char *prefix = "2025-06-05T";
-  for (int i = 0; prefix[i]; i++) buffer[pos++] = prefix[i];
+  for (i = 0; prefix[i] && pos < TIMESTAMP_BUFFER_SIZE - 1; i++) {
+    buffer[pos++] = prefix[i];
+  }
+  
+  if (pos + 12 >= TIMESTAMP_BUFFER_SIZE) {
+    return NULL; // Buffer too small
+  }
   
   // Add hours (HH)
   buffer[pos++] = (hours / 10) + '0';
@@ -486,6 +559,7 @@ const char* timestamp_to_string(void) {
   buffer[pos++] = (sec_int % 10) + '0';
   buffer[pos++] = '.';
   int frac = (int)((seconds - sec_int) * 100);
+  if (frac < 0) frac = 0;
   buffer[pos++] = (frac / 10) + '0';
   buffer[pos++] = (frac % 10) + '0';
   
@@ -494,116 +568,144 @@ const char* timestamp_to_string(void) {
   return buffer;
 }
 
+/**
+ * @brief Add string to buffer with bounds checking
+ * @param buffer Target buffer
+ * @param pos Current position in buffer (updated)
+ * @param max_size Maximum buffer size
+ * @param str String to add
+ * @return 0 on success, -1 on overflow
+ */
+static int add_str_safe(char *buffer, int *pos, int max_size, const char *str) {
+  int i;
+  for (i = 0; str[i] != '\0'; i++) {
+    if (*pos >= max_size - 1) {
+      return -1; // Buffer overflow
+    }
+    buffer[(*pos)++] = str[i];
+  }
+  return 0;
+}
+
+/**
+ * @brief Add integer to buffer with bounds checking
+ * @param buffer Target buffer
+ * @param pos Current position in buffer (updated)
+ * @param max_size Maximum buffer size
+ * @param value Integer to add
+ * @return 0 on success, -1 on overflow
+ */
+static int add_int_safe(char *buffer, int *pos, int max_size, int value) {
+  int written = int_to_str_safe(&buffer[*pos], max_size - *pos, value);
+  if (written < 0) {
+    return -1;
+  }
+  *pos += written;
+  return 0;
+}
+
+/**
+ * @brief Add float to buffer with specified decimal places and bounds checking
+ * @param buffer Target buffer
+ * @param pos Current position in buffer (updated)
+ * @param max_size Maximum buffer size
+ * @param value Float value to add
+ * @param decimal_places Number of decimal places
+ * @return 0 on success, -1 on overflow
+ */
+static int add_float_safe(char *buffer, int *pos, int max_size, float value, int decimal_places) {
+  // Calculate multiplier for decimal places
+  int multiplier = 1;
+  for (int i = 0; i < decimal_places; i++) {
+    multiplier *= 10;
+  }
+  
+  int int_part = (int)value;
+  int frac_part = (int)((value - int_part) * multiplier);
+  if (frac_part < 0) frac_part = -frac_part;
+  
+  // Add integer part
+  if (add_int_safe(buffer, pos, max_size, int_part) < 0) {
+    return -1;
+  }
+  
+  // Add decimal point
+  if (*pos >= max_size - 1) {
+    return -1;
+  }
+  buffer[(*pos)++] = '.';
+  
+  // Add fractional part with leading zeros
+  int divisor = multiplier / 10;
+  for (int i = 0; i < decimal_places; i++) {
+    if (*pos >= max_size - 1) {
+      return -1;
+    }
+    buffer[(*pos)++] = (frac_part / divisor) % 10 + '0';
+    divisor /= 10;
+  }
+  
+  return 0;
+}
+
+/**
+ * @brief Generate JSON string from sensor values with bounds checking
+ * @return Pointer to static JSON buffer, or NULL on error
+ */
 const char* json_from_values(void) {
-  static char json_buffer[512];
+  static char json_buffer[JSON_BUFFER_SIZE];
   int pos = 0;
   
-  // Helper to add string
-  #define ADD_STR(s) do { const char *_s = (s); for(int _i=0; _s[_i]; _i++) json_buffer[pos++] = _s[_i]; } while(0)
-  
-  ADD_STR("{\"device_id\":\"glider-001\",\"timestamp\":\"");
+  // Get timestamp
   const char *ts = timestamp_to_string();
-  for(int i=0; ts[i]; i++) json_buffer[pos++] = ts[i];
-  ADD_STR("\",\"location\":{\"latitude\":");
+  if (!ts) {
+    return NULL; // Invalid timestamp
+  }
+  
+  // Build JSON with safety checks
+  if (add_str_safe(json_buffer, &pos, JSON_BUFFER_SIZE, "{\"device_id\":\"glider-001\",\"timestamp\":\"") < 0) return NULL;
+  if (add_str_safe(json_buffer, &pos, JSON_BUFFER_SIZE, ts) < 0) return NULL;
+  if (add_str_safe(json_buffer, &pos, JSON_BUFFER_SIZE, "\",\"location\":{\"latitude\":") < 0) return NULL;
   
   // Add latitude with 6 decimal places
-  int lat_int = (int)GPSData.latitude;
-  int lat_frac = (int)((GPSData.latitude - lat_int) * 1000000);
-  if(lat_frac < 0) lat_frac = -lat_frac;
-  pos += int_to_str(&json_buffer[pos], lat_int);
-  json_buffer[pos++] = '.';
-  for(int i = 100000; i > 0; i /= 10) json_buffer[pos++] = (lat_frac / i) % 10 + '0';
+  if (add_float_safe(json_buffer, &pos, JSON_BUFFER_SIZE, GPSData.latitude, 6) < 0) return NULL;
   
-  ADD_STR(",\"longitude\":");
-  int lon_int = (int)GPSData.longitude;
-  int lon_frac = (int)((GPSData.longitude - lon_int) * 1000000);
-  if(lon_frac < 0) lon_frac = -lon_frac;
-  pos += int_to_str(&json_buffer[pos], lon_int);
-  json_buffer[pos++] = '.';
-  for(int i = 100000; i > 0; i /= 10) json_buffer[pos++] = (lon_frac / i) % 10 + '0';
+  if (add_str_safe(json_buffer, &pos, JSON_BUFFER_SIZE, ",\"longitude\":") < 0) return NULL;
+  if (add_float_safe(json_buffer, &pos, JSON_BUFFER_SIZE, GPSData.longitude, 6) < 0) return NULL;
   
-  ADD_STR(",\"altitude\":");
-  int alt_int = (int)GPSData.altitude;
-  int alt_frac = (int)((GPSData.altitude - alt_int) * 100);
-  if(alt_frac < 0) alt_frac = -alt_frac;
-  pos += int_to_str(&json_buffer[pos], alt_int);
-  json_buffer[pos++] = '.';
-  json_buffer[pos++] = (alt_frac / 10) + '0';
-  json_buffer[pos++] = (alt_frac % 10) + '0';
+  if (add_str_safe(json_buffer, &pos, JSON_BUFFER_SIZE, ",\"altitude\":") < 0) return NULL;
+  if (add_float_safe(json_buffer, &pos, JSON_BUFFER_SIZE, GPSData.altitude, 2) < 0) return NULL;
   
-  ADD_STR("},\"readings\":{\"temperature_celsius\":");
-  int temp_int = (int)BME280.Temperature;
-  int temp_frac = (int)((BME280.Temperature - temp_int) * 100);
-  if(temp_frac < 0) temp_frac = -temp_frac;
-  pos += int_to_str(&json_buffer[pos], temp_int);
-  json_buffer[pos++] = '.';
-  json_buffer[pos++] = (temp_frac / 10) + '0';
-  json_buffer[pos++] = (temp_frac % 10) + '0';
+  if (add_str_safe(json_buffer, &pos, JSON_BUFFER_SIZE, "},\"readings\":{\"temperature_celsius\":") < 0) return NULL;
+  if (add_float_safe(json_buffer, &pos, JSON_BUFFER_SIZE, BME280.Temperature, 2) < 0) return NULL;
   
-  ADD_STR(",\"humidity_percent\":");
-  int hum_int = (int)BME280.Humidity;
-  int hum_frac = (int)((BME280.Humidity - hum_int) * 100);
-  if(hum_frac < 0) hum_frac = -hum_frac;
-  pos += int_to_str(&json_buffer[pos], hum_int);
-  json_buffer[pos++] = '.';
-  json_buffer[pos++] = (hum_frac / 10) + '0';
-  json_buffer[pos++] = (hum_frac % 10) + '0';
+  if (add_str_safe(json_buffer, &pos, JSON_BUFFER_SIZE, ",\"humidity_percent\":") < 0) return NULL;
+  if (add_float_safe(json_buffer, &pos, JSON_BUFFER_SIZE, BME280.Humidity, 2) < 0) return NULL;
   
-  ADD_STR(",\"air_pressure_hpa\":");
-  int press_int = (int)BME280.Pressure;
-  int press_frac = (int)((BME280.Pressure - press_int) * 100);
-  if(press_frac < 0) press_frac = -press_frac;
-  pos += int_to_str(&json_buffer[pos], press_int);
-  json_buffer[pos++] = '.';
-  json_buffer[pos++] = (press_frac / 10) + '0';
-  json_buffer[pos++] = (press_frac % 10) + '0';
+  if (add_str_safe(json_buffer, &pos, JSON_BUFFER_SIZE, ",\"air_pressure_hpa\":") < 0) return NULL;
+  if (add_float_safe(json_buffer, &pos, JSON_BUFFER_SIZE, BME280.Pressure, 2) < 0) return NULL;
   
-  ADD_STR(",\"pitch_deg\":");
-  int pitch_int = (int)MPUattitude.p;
-  int pitch_frac = (int)((MPUattitude.p - pitch_int) * 100);
-  if(pitch_frac < 0) pitch_frac = -pitch_frac;
-  pos += int_to_str(&json_buffer[pos], pitch_int);
-  json_buffer[pos++] = '.';
-  json_buffer[pos++] = (pitch_frac / 10) + '0';
-  json_buffer[pos++] = (pitch_frac % 10) + '0';
+  if (add_str_safe(json_buffer, &pos, JSON_BUFFER_SIZE, ",\"pitch_deg\":") < 0) return NULL;
+  if (add_float_safe(json_buffer, &pos, JSON_BUFFER_SIZE, MPUattitude.p, 2) < 0) return NULL;
   
-  ADD_STR(",\"roll_deg\":");
-  int roll_int = (int)MPUattitude.r;
-  int roll_frac = (int)((MPUattitude.r - roll_int) * 100);
-  if(roll_frac < 0) roll_frac = -roll_frac;
-  pos += int_to_str(&json_buffer[pos], roll_int);
-  json_buffer[pos++] = '.';
-  json_buffer[pos++] = (roll_frac / 10) + '0';
-  json_buffer[pos++] = (roll_frac % 10) + '0';
+  if (add_str_safe(json_buffer, &pos, JSON_BUFFER_SIZE, ",\"roll_deg\":") < 0) return NULL;
+  if (add_float_safe(json_buffer, &pos, JSON_BUFFER_SIZE, MPUattitude.r, 2) < 0) return NULL;
   
-  ADD_STR(",\"yaw_deg\":");
-  int yaw_int = (int)MPUattitude.y;
-  int yaw_frac = (int)((MPUattitude.y - yaw_int) * 100);
-  if(yaw_frac < 0) yaw_frac = -yaw_frac;
-  pos += int_to_str(&json_buffer[pos], yaw_int);
-  json_buffer[pos++] = '.';
-  json_buffer[pos++] = (yaw_frac / 10) + '0';
-  json_buffer[pos++] = (yaw_frac % 10) + '0';
+  if (add_str_safe(json_buffer, &pos, JSON_BUFFER_SIZE, ",\"yaw_deg\":") < 0) return NULL;
+  if (add_float_safe(json_buffer, &pos, JSON_BUFFER_SIZE, MPUattitude.y, 2) < 0) return NULL;
   
-  ADD_STR("},\"status\":{\"satellites\":");
-  pos += int_to_str(&json_buffer[pos], GPSData.satelliteCount);
+  if (add_str_safe(json_buffer, &pos, JSON_BUFFER_SIZE, "},\"status\":{\"satellites\":") < 0) return NULL;
+  if (add_int_safe(json_buffer, &pos, JSON_BUFFER_SIZE, GPSData.satelliteCount) < 0) return NULL;
   
-  ADD_STR(",\"fix\":");
-  pos += int_to_str(&json_buffer[pos], (int)GPSData.fix);
+  if (add_str_safe(json_buffer, &pos, JSON_BUFFER_SIZE, ",\"fix\":") < 0) return NULL;
+  if (add_int_safe(json_buffer, &pos, JSON_BUFFER_SIZE, (int)GPSData.fix) < 0) return NULL;
   
-  ADD_STR(",\"hdop\":");
-  int hdop_int = (int)GPSData.hdop;
-  int hdop_frac = (int)((GPSData.hdop - hdop_int) * 100);
-  if(hdop_frac < 0) hdop_frac = -hdop_frac;
-  pos += int_to_str(&json_buffer[pos], hdop_int);
-  json_buffer[pos++] = '.';
-  json_buffer[pos++] = (hdop_frac / 10) + '0';
-  json_buffer[pos++] = (hdop_frac % 10) + '0';
+  if (add_str_safe(json_buffer, &pos, JSON_BUFFER_SIZE, ",\"hdop\":") < 0) return NULL;
+  if (add_float_safe(json_buffer, &pos, JSON_BUFFER_SIZE, GPSData.hdop, 2) < 0) return NULL;
   
-  ADD_STR("}}");
+  if (add_str_safe(json_buffer, &pos, JSON_BUFFER_SIZE, "}}") < 0) return NULL;
+  
   json_buffer[pos] = '\0';
-  
-  #undef ADD_STR
   return json_buffer;
 }
 
