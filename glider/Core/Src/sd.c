@@ -30,6 +30,19 @@ void initsd(void) {
   // Formula comes from ChaN's documentation
   total_sectors = (getFreeFs->n_fatent - 2) * getFreeFs->csize;
   free_sectors = free_clusters * getFreeFs->csize;
+
+  fres =
+      f_open(&fil, "write.txt", FA_WRITE | FA_OPEN_ALWAYS | FA_CREATE_ALWAYS);
+
+  BYTE readBuf[256];
+  const char *header = "ax,ay,az,gx,gy,gz,r,p,y,Temperature,Pressure,Humidity,"
+                       "AltitudeP,AltitudeTP,latitude,latSide,longitude,"
+                       "lonSide,altitude,hdop,satelliteCount,fix,lastMeasure\n";
+  size_t headerLen = strlen(header);
+  strncpy((char *)readBuf, header, sizeof(readBuf) - 1);
+  readBuf[sizeof(readBuf) - 1] = '\0';
+  UINT bytesWrote;
+  fres = f_write(&fil, readBuf, headerLen, &bytesWrote);
 }
 
 void writeall(SENSORDATA *sensordata) {
@@ -45,7 +58,7 @@ void writeall(SENSORDATA *sensordata) {
   fres = f_write(&fil, readBuf, 19, &bytesWrote);
 
   // Format sensor data as CSV string
-  char csvBuf[256];
+  char csvBuf[512];
   snprintf(
       csvBuf, sizeof(csvBuf),
       "%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%c,%f,%c,%f,%f,%d,%d,%s\n",
