@@ -83,7 +83,7 @@ void Error_Handler(void);
 #define BTN_3_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
-void mount_sd();
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
