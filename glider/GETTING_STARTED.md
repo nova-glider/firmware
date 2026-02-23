@@ -87,8 +87,8 @@ daarna kan je aan de gpsdata:
 ```c
 GPSData.latitude // latitude in degrees with decimal places
 GPSData.latSide // N or S
-GPSData.longtitude // longitude in degrees with decimal places
-GPSData.longSide // E or W
+GPSData.longitude // longitude in degrees with decimal places
+GPSData.lonSide // E or W
 GPSData.altitude // altitude in meters
 GPSData.hdop // horizontal dilution of precision
 GPSData.satelliteCount // number of satellites used in measurement

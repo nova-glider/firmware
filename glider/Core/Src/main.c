@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "fatfs.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -25,6 +26,7 @@
 #include "RF98.h"
 #include "bme280.h"
 #include "nmea_parse.h"
+#include "sd.h"
 #include <stdint.h>
 
 /* USER CODE END Includes */
@@ -36,7 +38,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-BME280_Data_t BME280;
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -53,15 +55,7 @@ SPI_HandleTypeDef hspi2;
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
-#define RxBuffer_SIZE 64   // configure uart receive buffer size
-#define GPSBuffer_SIZE 512 // gather a few rxBuffer frames before parsing
 
-uint16_t oldPos = 0;
-uint16_t newPos = 0;
-uint8_t RxBuffer[RxBuffer_SIZE];
-uint8_t GPSBuffer[GPSBuffer_SIZE];
-
-GPS GPSData;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -113,27 +107,15 @@ int main(void)
   MX_SPI2_Init();
   MX_USART1_UART_Init();
   MX_I2C1_Init();
+  MX_FATFS_Init();
   /* USER CODE BEGIN 2 */
-  RF98_Init();
 
-  MPU_begin(&hi2c1, AD0_LOW, AFSR_16G, GFSR_2000DPS, 0.98, 0.004);
-  MPU_calibrateGyro(&hi2c1, 1500);
-  MPU_calcAttitude(&hi2c1);
-
-  Reset_BME280();
-  BME280Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1) {
-    update_bme280_values();
-    update_mpu9250_values();
-    update_nmea_values();
-
-    send(json_from_values());
-    
-  }
+    RF98_send((uint8_t *)"blub");
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -233,7 +215,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
