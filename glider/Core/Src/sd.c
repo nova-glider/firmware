@@ -73,4 +73,6 @@ void writeall(SENSORDATA *sensordata) {
 
   // Be a tidy kiwi - don't forget to close your file!
   f_close(&fil);
+
+  // todo: send
 }

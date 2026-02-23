@@ -5,6 +5,7 @@
 #include "fatfs.h"
 #include "nmea_parse.h"
 #include "sd.h"
+#include <string.h>
 
 #define RxBuffer_SIZE 64   // configure uart receive buffer size
 #define GPSBuffer_SIZE 512 // gather a few rxBuffer frames before parsing
@@ -34,6 +35,9 @@ void initall() {
 
   Reset_BME280();
   BME280Init();
+
+  // SD card initialization
+  initsd();
 }
 
 void readall(SENSORDATA *sensordata) {
