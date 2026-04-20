@@ -1,0 +1,13 @@
+build
+mx.scratch
+
+.settings
+.vscode
+cmake
+.clangd
+CMakeLists.txt
+CMakePresets.json
+startup_stm32f103xb.s
+STM32F103XX_FLASH.ld
+Drivers/
+glider.code-workspace
