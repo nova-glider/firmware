@@ -119,9 +119,10 @@ int main(void) {
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1) {
+    //read data
     readall(&sensordata);
-    writeall(&sensordata);
-    RF98_send((uint8_t *)"blub"); // todo
+    // save and transmit data
+    writeandsend(&sensordata);
   }
   /* USER CODE END WHILE */
 

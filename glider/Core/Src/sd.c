@@ -1,4 +1,5 @@
 #include "sd.h"
+#include "RF98.h"
 #include "fatfs.h"
 #include "main.h"
 #include "sensors.h"
@@ -45,7 +46,7 @@ void initsd(void) {
   fres = f_write(&fil, readBuf, headerLen, &bytesWrote);
 }
 
-void writeall(SENSORDATA *sensordata) {
+void writeandsend(SENSORDATA *sensordata) {
   BYTE readBuf[30];
 
   // Now let's try and write a file "write.txt"
@@ -75,4 +76,5 @@ void writeall(SENSORDATA *sensordata) {
   f_close(&fil);
 
   // todo: send
+  RF98_send((uint8_t *)csvBuf); // easy hopelijk 🙏
 }
