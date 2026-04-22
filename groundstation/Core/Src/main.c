@@ -119,8 +119,20 @@ int main(void) {
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1) {
-    // todo:
-    // receive data from glider and save in sd card
+    // Set LoRa to continuous receive mode
+    RF98_setModeRx_Continuous();
+    
+    // Block until data is received (or use RF98_receive_Timeout for non-blocking)
+    if (RF98_receive(LoRa_buff)) {
+        // Successfully received data
+        // LoRa_buff now contains the data
+        
+        // Parse the received data (depends on your transmission format)
+        // For now, assuming it's serialized sensor data or JSON
+        
+        // Save to SD card
+        saveDataToSD((char*)LoRa_buff);
+    }
   }
   /* USER CODE END WHILE */
 
