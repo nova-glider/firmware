@@ -112,6 +112,12 @@ int main(void) {
   MX_USART1_UART_Init();
   MX_I2C1_Init();
   MX_FATFS_Init();
+
+  readall(&sensordata);
+  BYTE filenameBuf[20];
+  snprintf((char *)filenameBuf, sizeof(filenameBuf), "%s.txt", sensordata->lastMeasure);
+  writeheaders((char *)filenameBuf);
+
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -122,7 +128,9 @@ int main(void) {
     //read data
     readall(&sensordata);
     // save and transmit data
-    writeandsend(&sensordata);
+    writeandsend(&sensordata, (char *)filenameBuf);
+    // wait a bit before next read
+    HAL_Delay(1000);
   }
   /* USER CODE END WHILE */
 

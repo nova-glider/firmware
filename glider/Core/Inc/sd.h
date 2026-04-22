@@ -4,3 +4,5 @@
 
 void writeandsend(SENSORDATA *sensordata);
 void initsd(void);
+int write(char *filename, char *data);
+void writeheaders(char *filename);

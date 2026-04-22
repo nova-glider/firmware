@@ -3,8 +3,10 @@
 #include "fatfs.h"
 #include "main.h"
 #include "sensors.h"
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/_intsup.h>
 
 FATFS FatFs;  // Fatfs handle
 FIL fil;      // File handle
@@ -31,28 +33,14 @@ void initsd(void) {
   // Formula comes from ChaN's documentation
   total_sectors = (getFreeFs->n_fatent - 2) * getFreeFs->csize;
   free_sectors = free_clusters * getFreeFs->csize;
-
-  fres =
-      f_open(&fil, "write.txt", FA_WRITE | FA_OPEN_ALWAYS | FA_CREATE_ALWAYS);
-
-  BYTE readBuf[256];
-  const char *header = "ax,ay,az,gx,gy,gz,r,p,y,Temperature,Pressure,Humidity,"
-                       "AltitudeP,AltitudeTP,latitude,latSide,longitude,"
-                       "lonSide,altitude,hdop,satelliteCount,fix,lastMeasure\n";
-  size_t headerLen = strlen(header);
-  strncpy((char *)readBuf, header, sizeof(readBuf) - 1);
-  readBuf[sizeof(readBuf) - 1] = '\0';
-  UINT bytesWrote;
-  fres = f_write(&fil, readBuf, headerLen, &bytesWrote);
 }
 
-void writeandsend(SENSORDATA *sensordata) {
-  BYTE readBuf[30];
-
-  // Now let's try and write a file "write.txt"
+void writeandsend(SENSORDATA *sensordata, char *filename) {
+    // Now let's try and write a file
   fres =
-      f_open(&fil, "write.txt", FA_WRITE | FA_OPEN_ALWAYS | FA_CREATE_ALWAYS);
+      f_open(&fil, filename, FA_WRITE | FA_OPEN_ALWAYS | FA_CREATE_ALWAYS);
 
+  BYTE readBuf[30];
   // Copy in a string
   strncpy((char *)readBuf, "a new file is made!", 19);
   UINT bytesWrote;
@@ -77,4 +65,35 @@ void writeandsend(SENSORDATA *sensordata) {
 
   // todo: send
   RF98_send((uint8_t *)csvBuf); // easy hopelijk 🙏
+}
+
+int write(char *filename, char *data) {
+    fres =
+      f_open(&fil, filename, FA_WRITE | FA_OPEN_ALWAYS | FA_CREATE_ALWAYS);
+
+  BYTE readBuf[30];
+  // Copy in a string
+  strncpy((char *)readBuf, data, 19);
+  UINT bytesWrote;
+  fres = f_write(&fil, readBuf, 19, &bytesWrote);
+  f_close(&fil);
+
+  return fres == FR_OK;
+}
+
+void writeheaders(char *filename) {
+  fres =
+      f_open(&fil, filename, FA_WRITE | FA_OPEN_ALWAYS | FA_CREATE_ALWAYS);
+
+  BYTE readBuf[256];
+  const char *header = "ax,ay,az,gx,gy,gz,r,p,y,Temperature,Pressure,Humidity,"
+                       "AltitudeP,AltitudeTP,latitude,latSide,longitude,"
+                       "lonSide,altitude,hdop,satelliteCount,fix,lastMeasure\n";
+  size_t headerLen = strlen(header);
+  strncpy((char *)readBuf, header, sizeof(readBuf) - 1);
+  readBuf[sizeof(readBuf) - 1] = '\0';
+  UINT bytesWrote;
+  fres = f_write(&fil, readBuf, headerLen, &bytesWrote);
+
+  f_close(&fil);
 }
