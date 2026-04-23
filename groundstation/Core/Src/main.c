@@ -112,7 +112,14 @@ int main(void)
   MX_USART1_UART_Init();
   MX_I2C1_Init();
   MX_FATFS_Init();
+
+  BYTE filenameBuf[20];
+  snprintf((char *)filenameBuf, sizeof(filenameBuf), "log.csv");
+  writeheaders((char *)filenameBuf);
+
   /* USER CODE BEGIN 2 */
+
+  uint8_t LoRa_buff[512];
 
   /* USER CODE END 2 */
 
@@ -127,11 +134,13 @@ int main(void)
         // Successfully received data
         // LoRa_buff now contains the data
         
-        // Parse the received data (depends on your transmission format)
-        // For now, assuming it's serialized sensor data or JSON
-        
         // Save to SD card
-        saveDataToSD((char*)LoRa_buff);
+        if (!write("log.csv", (char*)LoRa_buff)) {
+            // Handle write error
+            // problemo
+        }
+
+        // send to pc ... gulp
     }
   }
     /* USER CODE END WHILE */

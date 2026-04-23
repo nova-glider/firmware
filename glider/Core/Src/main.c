@@ -115,7 +115,7 @@ int main(void) {
 
   readall(&sensordata);
   BYTE filenameBuf[20];
-  snprintf((char *)filenameBuf, sizeof(filenameBuf), "%s.txt", sensordata->lastMeasure);
+  snprintf((char *)filenameBuf, sizeof(filenameBuf), "%s.csv", sensordata->lastMeasure);
   writeheaders((char *)filenameBuf);
 
   /* USER CODE BEGIN 2 */
